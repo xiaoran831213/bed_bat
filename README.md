@@ -1,10 +1,15 @@
+# gtools introcution
+
+Genotype Tools written in Linux shell script mostly.
+
+
 # bat.sh: batch partition
 
-Batch partition the genotype sample in a PLINK BED file set.
+Batch partition the samples in genotype of PLINK BED format.
 
-The study cohort can be huge, it is necessary to partition the samples for batched analysis.
+When a study cohort is huge, it is sometime necessary to partition the samples for batched analysis.
 
-Usually, only samples with non-missing phenotype are to be partitioned, and the levels of categorical varialbes should appear in all batches proportionately, the tool take care of these.
+Usually, samples with non-missing phenotype are the only concern, and the levels of categorical varialbes should appear in all batches proportionately, the tool take care of these.
 
 
 # vmt.sh: variant matcher
