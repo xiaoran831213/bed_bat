@@ -1,8 +1,12 @@
-# bed_bat
-Batch partition the samples in a PLINK BED file set.
+# bat.sh: batch partition
 
-The genetic study cohort can be huge, with hundreds of thousands of samples and more, it is necessary to partition the samples for batched analysis or other tasks.
+Batch partition the genotype sample in a PLINK BED file set.
 
-Usually, the researcher only concerns the partitioning of sample with non-missing phenotype or other covariates, the tool take care of this.
+The study cohort can be huge, it is necessary to partition the samples for batched analysis.
 
-When dealing with case/control or other phenotypes of limited category, it is necessary to equally spread the categories in all batches, this is taken are off.
+Usually, only samples with non-missing phenotype are to be partitioned, and the levels of categorical varialbes should appear in all batches proportionately, the tool take care of these.
+
+
+# vmt.sh: variant matcher
+
+Match variants in an input (i.e., a GWAS report) to a reference (i.e., BIM of a PLINK file set) as many as possible by strand flipping and major/minor allele swapping.
