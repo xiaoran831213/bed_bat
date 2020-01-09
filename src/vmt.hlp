@@ -1,0 +1,35 @@
+vmt.sh:
+  Variant Matcher
+
+Usage:
+  SCRIPT --ref REF --inp INP --out OUT
+
+Mandatory Parameters:
+  -r|--ref REF: variants reference
+  -i|--inp INP: variants input
+  examples: PLINK BIM, GWAS summary, and VCF, preferably tab-delimited.
+
+Optional  Parameters:
+
+  --out: output name, adds ".alm" to it if the surfix is missing; infer from INP
+  if unspecified
+
+  --ref-format RFM: format of REF
+  --inp-format IFM: format of INP
+  RFM and IFM can be 4 numbers separated by "," pointing to CHR, POS, A1 and
+  A2 in a the corresponding reference or input table.
+  e.g., "--ref gno.bim --ref-format 1,4,5,6" suits PLINK BIM "gno.bim".
+
+  RFM and IFM can take a type string as well:
+    bim : PLINK BIM format
+    vcf : VCF4 format
+    pvar: PLINK 2 PGEN format
+  e.g., "--ref gno.bim --ref-format bim" also works.
+
+  When unspecified, infer RMF and IFM from the surfix of --ref REF and --inp INP
+  e.g., "--ref gno.bim" recognized "gno.bim" as an PLINK BIM.
+
+  If the surfix is not recognized, the first four columns are assumed to be CHR,
+  POS, A1 and A2.
+  e.g., "--inp gwa.txt" amounts to "--inp gwa.txt --inp-format 1,2,3,4"
+

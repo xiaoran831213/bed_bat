@@ -1,0 +1,9 @@
+# data directories
+raw/
+dat;
+
+# backup scripts
+*~
+
+# markdown exported html under src
+src/*.html

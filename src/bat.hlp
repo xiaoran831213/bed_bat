@@ -1,0 +1,12 @@
+# bat.sh:
+
+  batched partition a genotype
+
+# function:
+
+  divide genotype (PLINK BED) to (roughly) equal size batches, useful for divide
+  and conquer the analytical task of a huge cohort.
+
+  when sample features  (disease, sex, age, etc.) are given,  the tool make sure
+  these featuers distribute similarly in each batch.
+
