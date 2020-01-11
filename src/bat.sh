@@ -1,6 +1,7 @@
 #!/bin/sh
 
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+DIR=$(dirname "$(readlink -f "$0")")
+S=${0##*/}
 
 # load helpers
 . "$DIR/hlp.sh"
@@ -36,7 +37,7 @@ LOPT=idv:,gen:,batchsize:,out:,workdir,erase,verbose,retain
 # -temporarily store output to be able to check for errors
 # -activate quoting/enhanced mode (e.g. by writing out “--options”)
 # -pass arguments only via   -- "$@"   to separate them correctly
-! PARSED=$(getopt --options=$SOPT --longoptions=$LOPT --name "$0" -- "$@")
+! PARSED=$(getopt --options=$SOPT --longoptions=$LOPT --name "$S" -- "$@")
 if [[ ${PIPESTATUS[0]} -ne 0 ]]; then
     # e.g. return value  is 1, then getopt has complained  about wrong arguments
     #  to stdout
@@ -47,7 +48,7 @@ fi
 eval set -- "$PARSED"
 
 # now enjoy the options in order and nicely split until we see --
-echo "$0: parsing command line:"
+echo "$S: parsing command line:"
 while true; do
     # echo "$1 $2"
     case "$1" in
@@ -59,7 +60,7 @@ while true; do
         -v|--verbose)      s=1; vbs=1 ;;
         --retain)          s=1; retain=y ;;
         --)                shift; break ;;
-        * ) echo "$0: unrecognized option \"$1\""; exit 3 ;;
+        * ) echo "$S: unrecognized option \"$1\""; exit 3 ;;
     esac
     echo -n "  $1"
     [ $s -ge 2 ] && echo -n " $2"
@@ -74,12 +75,12 @@ echo "  -- $@"; HR
 
 ## gather genotype words
 ngt=${#gts[@]}                  # number of words
-[ $ngt -gt 0 ] || (echo "$0: need at least one genotype via -g|--gen." >&2; exit 4)
-[ $vbs ] && echo "$0: $ngt genotype term(s) specified:"
+[ $ngt -gt 0 ] || (echo "$S: need at least one genotype via -g|--gen." >&2; exit 4)
+[ $vbs ] && echo "$S: $ngt genotype term(s) specified:"
 [ $vbs ] && (for _ in ${gts[@]}; do echo '  '$_; done; HR)
 
 ## make directories
-[ $vbs ] && echo "$0: create directory"
+[ $vbs ] && echo "$S: create directory"
 [ -z "$out" ] && out="."
 mkdir -m0775 -p $out
 [ $vbs ] && echo "  out=$out"
@@ -92,12 +93,12 @@ for i in $(seq 0 $[$ngt-1]); do
     ! eval ls ${gts[$i]}.{bed,pgen} 2>/dev/null
 done | sed -r 's/[.](bed|pgen)$//' | sort -u > "$wrk/gls"
 ngt=$(cat "$wrk/gls" | wc -l)
-[ $ngt -gt 0 ] || (echo "$0: found no genotype file" >$2; exit 4)
-[ $vbs ] && echo "$0: $ngt genotype found (see $wrk/gls):"
+[ $ngt -gt 0 ] || (echo "$S: found no genotype file" >$2; exit 4)
+[ $vbs ] && echo "$S: $ngt genotype found (see $wrk/gls):"
 [ $vbs ] && (peek "$wrk/gls" 3 "  "; HR)
 
 ## genotyped individuals
-[ $vbs ] && echo "$0: gather individuals appeared in all genotype:"
+[ $vbs ] && echo "$S: gather individuals appeared in all genotype:"
 if [ -s "$wrk/gid" ]; then      # exist/erase?
     s=$([ $erase ] && echo ERASE || echo EXIST)
 else
@@ -109,7 +110,7 @@ if [ $s = ERASE -o $s = CREATE ]; then
         if   [ -f "$g.fam"  ]; then awk <"$g.fam"  '{print $1,$2}'
         elif [ -f "$g.psam" ]; then awk <"$g.psam" '{print $1,$2}'
         else
-            echo "$0: can not locate \"$g.fam\" or \"$g.pasm\"" >2
+            echo "$S: can not locate \"$g.fam\" or \"$g.pasm\"" >2
             exit 4
         fi
     done < "$wrk/gls" | sort | uniq -c \
@@ -129,8 +130,8 @@ ind=$(cat "$wrk/gid" | wc -l)   # report
 
 ## individual discription
 if [ "$idv" ]; then
-    [ $vbs ] && echo "$0: check individuals in \"$idv\" (--idv|-i):"
-    [ -f "$idv" ] || (echo "$0: \"$idv\" is not a file!" &>2; exit 4)
+    [ $vbs ] && echo "$S: check individuals in \"$idv\" (--idv|-i):"
+    [ -f "$idv" ] || (echo "$S: \"$idv\" is not a file!" &>2; exit 4)
 
     if [ -s "$wrk/iid" ]; then
         s=$([ $erase ] && echo ERASE || echo EXIST)
@@ -139,15 +140,15 @@ if [ "$idv" ]; then
     fi
 
     if [ $s = ERASE -o $s = CREATE ]; then
-        [ $vbs ] && echo "$0: sort idv spec by IID (1st column)"
+        [ $vbs ] && echo "$S: sort idv spec by IID (1st column)"
         sort -k1,1 -u "$idv" > "$wrk/idv.srt"
         r=$?; [ ! $r -eq 0 ] && echo ERR: $r && exit $r
 
-        [ $vbs ] && echo "$0: join idv spec with genotyped IID"
+        [ $vbs ] && echo "$S: join idv spec with genotyped IID"
         join "$wrk/idv.srt" "$wrk/gid" > "$wrk/idv.jnt"
         r=$?; [ ! $r -eq 0 ] && echo ERR: $r && exit $r
 
-        [ $vbs ] && echo "$0: sort idv spec for splitting"
+        [ $vbs ] && echo "$S: sort idv spec for splitting"
         col=$(head -n 1 "$wrk/idv.jnt" | wc -w) # number of column
         if [ $col -gt 1 ]; then
             sort <"$wrk/idv.jnt" -k2,$col >"$wrk/idv"
@@ -160,7 +161,7 @@ if [ "$idv" ]; then
         r=PASS
     fi
 else
-    [ $vbs ] && echo -n "$0: no individual specified (--idv|i), "
+    [ $vbs ] && echo -n "$S: no individual specified (--idv|i), "
     [ $vbs ] && echo    "copy \"$wrk/gid\" to \"$wrk/idv".
     s=COPY
     cp "$wrk/gid" "$wrk/idv"
@@ -172,7 +173,7 @@ ind=$(cat "$wrk/idv" | wc -l)       # final number of individuals
 
 
 ## batche count and size
-[ $vbs ] && echo -n "$0: batch division syntax"
+[ $vbs ] && echo -n "$S: batch division syntax"
 if [ -z $bat ]; then
     bat=4
     [ $vbs ] && echo " unspecified, use def \"--bat 4\""
@@ -187,15 +188,15 @@ if   [ "$bat" = n -o -z "$bat" ]; then
 elif [ "$bat" = s ]; then
     nbt=$[$ind/$val];           # size by s={}
 else
-    echo "$0: unrecognized batch syntax \"$bat\""  >&2
+    echo "$S: unrecognized batch syntax \"$bat\""  >&2
     exit 4
 fi
 bsz=$[$ind/$nbt]                # recalculate batch size
-[ $vbs ] && echo "$0: batch = $nbt, size ~ $bsz" && HR
+[ $vbs ] && echo "$S: batch = $nbt, size ~ $bsz" && HR
 
 
 ## batch division
-[ $vbs ] && echo "$0: spliting $ind into $nbt batches, ~$bsz each."
+[ $vbs ] && echo "$S: spliting $ind into $nbt batches, ~$bsz each."
 if [ -d "$wrk/div" ] && \
        [ $(find "$wrk/div" -name "*.idv" | wc -l) -eq $nbt ] && \
        [ $(cat "$wrk/div/"*.idv | wc -l) -eq $ind ]; then
@@ -205,7 +206,7 @@ else
     s=CREATE                    # or new?
 fi
 if [ $s = CREATE -o $s = ERASE ]; then
-    [ $vbs ] && echo "$0: split idv spec, and extract IID"
+    [ $vbs ] && echo "$S: split idv spec, and extract IID"
     # split
     split -n r/$nbt -d -a3 "$wrk/idv" "$wrk/div/" --additional-suffix ".idv"
     # extract IID
@@ -225,12 +226,12 @@ wc -l "$wrk/div"/*.idv | head -n-1 | awk '{print $1,$2}' > "$wrk/bsz"
 
 ## divide genotype
 K=/dev/null                     # sink
-[ $vbs ] && echo "$0: divide genotype by \"*.idv\" under \"$wrk/div\":"
+[ $vbs ] && echo "$S: divide genotype by \"*.idv\" under \"$wrk/div\":"
 while IFS= read -r f            # genotype files
 do
     g=${f//[ \/]/_}             # genotype id
     t="$wrk/div/gno.$g"         # genotype extract
-    [ $vbs ] && echo "$0: divide \"$f\":"
+    [ $vbs ] && echo "$S: divide \"$f\":"
     
     # divide the genotype
     for b in "$wrk/div/"*.iid   # batch numbers
@@ -256,11 +257,11 @@ do
         [ $r = "0" ] || [ $r = PASS ] || exit $r
     done
 done < "$wrk/gls"
-[ $vbs ] && echo "$0: $ngt genotype divided under \"{w}/div\"." && HR
+[ $vbs ] && echo "$S: $ngt genotype divided under \"{w}/div\"." && HR
 
 
 # merge genotype for each batch
-[ $vbs ] && echo "$0: merge genotype for each batch"
+[ $vbs ] && echo "$S: merge genotype for each batch"
 for b in $(seq -w 000 $[$nbt-1])
 do
     o="$out"/$b
