@@ -29,9 +29,9 @@ Batch partition genotype samples in [PLINK BED] format.
     ```
   - divide the same genotype, with suggested batch size of 15, into __s15__:
 	```sh
-    ls dat/test/001/*xa?.*
+    ls dat/test/001/xa?.*
 	src/bat.sh -e -g dat/test/001/xa? -o s15 -b s=15
-    wc -l s15/*.fam*
+    wc -l s15/*.fam
     ```
   - take individual description file __dat/test/001_all.idv__,
 	```sh
