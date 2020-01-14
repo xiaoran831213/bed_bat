@@ -58,7 +58,8 @@ vfmt() {
     esac
 }
 
-# create a new file, or use existing one?
+
+# create a new file, or use an existing one?
 # param 1: filename*
 # param 2: erase?
 fnew() {
@@ -67,6 +68,25 @@ fnew() {
     if [ -s "$1" ]; then
         [ $# -gt 1 ] && echo ERASE || echo EXIST
     else
+        echo CREATE
+    fi
+}
+
+
+# create a new directory, or use an existing one?
+# param 1: dirname*
+# param 2: erase?
+# return:
+#     CREATE: create
+#     ERASE: erase and create
+#     EXIST: use existing
+dnew() {
+    [ $# -gt 0 ] || return 255 # file unspecified
+
+    if [ -d "$1" ]; then
+        [ $# -gt 1 ] && echo ERASE || echo EXIST
+    else
+        mkdir -m0775 -p "$1"; r=$?; [ $r = "0" ] || exit $r
         echo CREATE
     fi
 }

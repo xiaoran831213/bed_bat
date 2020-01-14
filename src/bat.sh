@@ -79,6 +79,7 @@ ngt=${#gts[@]}                  # number of words
 [ $vbs ] && echo "$S: $ngt genotype term(s) specified:"
 [ $vbs ] && (for _ in ${gts[@]}; do echo '  '$_; done; HR)
 
+
 ## make directories
 [ $vbs ] && echo "$S: create directory"
 [ -z "$out" ] && out="."
@@ -87,6 +88,7 @@ mkdir -m0775 -p $out
 [ -z "$wrk" ] && wrk="${out:-.}/wrk"
 mkdir -m0775 -p $wrk
 [ $vbs ] && (echo "  wrk=$wrk"; HR)
+
 
 ## locate genotype files
 for i in $(seq 0 $[$ngt-1]); do
@@ -97,29 +99,27 @@ ngt=$(cat "$wrk/gls" | wc -l)
 [ $vbs ] && echo "$S: $ngt genotype found (see $wrk/gls):"
 [ $vbs ] && (peek "$wrk/gls" 3 "  "; HR)
 
+
 ## genotyped individuals
+i="$wrk/gls"; o="$wrk/ref"
 [ $vbs ] && echo "$S: gather individuals appeared in all genotype:"
-if [ -s "$wrk/gid" ]; then      # exist/erase?
-    s=$([ $erase ] && echo ERASE || echo EXIST)
+s=$(fnew "$o" $erase)
+if [ $s = EXIST ]; then
+   r=PASS
 else
-    s=CREATE                    # or new?
-fi
-if [ $s = ERASE -o $s = CREATE ]; then
     # get both fid and iid
     while IFS= read -r g; do
         if   [ -f "$g.fam"  ]; then awk <"$g.fam"  '{print $1,$2}'
         elif [ -f "$g.psam" ]; then awk <"$g.psam" '{print $1,$2}'
         else
-            echo "$S: can not locate \"$g.fam\" or \"$g.pasm\"" >2
+            echo "$S: can not locate either \"$g.fam\" or \"$g.psam\"" >2
             exit 4
         fi
-    done < "$wrk/gls" | sort | uniq -c \
+    done < "$i" | sort | uniq -c \
         | awk -v m=$ngt '$1==m {print $2,$3}' > "$wrk/bid"
     # get genotyped iid
     awk <"$wrk/bid" '{print $2}' | sort > "$wrk/gid"
     r=$?
-else
-    r=PASS
 fi
 [ $vbs ] && echo "$s $r $wrk/gid"     # report, exit on error
 [ $r = "0" ] || [ $r = PASS ] || exit $r
@@ -169,16 +169,16 @@ fi
 ind=$(cat "$wrk/idv" | wc -l)       # final number of individuals
 [ $vbs ] && echo "$s $r $wrk/idv"
 [ $vbs ] && peek "$wrk/idv" 3 "  "
-[ $vbs ] && echo "N=$ind final individuals retained in \"$wrk/idv\"." && HR
+[ $vbs ] && echo "$S: N=$ind individuals retained in \"$wrk/idv\"." && HR
 
 
 ## batche count and size
 [ $vbs ] && echo -n "$S: batch division syntax"
 if [ -z $bat ]; then
     bat=4
-    [ $vbs ] && echo " unspecified, use def \"--bat 4\""
+    [ $vbs ] && echo " unspecified, use \"--bat 4\""
 else
-    [ $vbs ] && echo "is \"$bat\""
+    [ $vbs ] && echo " is \"$bat\""
 fi
 
 val=${bat#*[/=]}                # value
@@ -192,21 +192,18 @@ else
     exit 4
 fi
 bsz=$[$ind/$nbt]                # recalculate batch size
-[ $vbs ] && echo "$S: batch = $nbt, size ~ $bsz" && HR
-
 
 ## batch division
-[ $vbs ] && echo "$S: spliting $ind into $nbt batches, ~$bsz each."
+[ $vbs ] && echo "$S: split $ind into $nbt batches, ~$bsz each."
 if [ -d "$wrk/div" ] && \
        [ $(find "$wrk/div" -name "*.idv" | wc -l) -eq $nbt ] && \
        [ $(cat "$wrk/div/"*.idv | wc -l) -eq $ind ]; then
     s=$([ $erase ] && echo ERASE || echo EXIST)
 else
-    mkdir -p "$wrk/div"
+    rm -rf "$wrk/div"; mkdir -m0775 -p "$wrk/div"
     s=CREATE                    # or new?
 fi
 if [ $s = CREATE -o $s = ERASE ]; then
-    [ $vbs ] && echo "$S: split idv spec, and extract IID"
     # split
     split -n r/$nbt -d -a3 "$wrk/idv" "$wrk/div/" --additional-suffix ".idv"
     # extract IID
@@ -217,16 +214,16 @@ if [ $s = CREATE -o $s = ERASE ]; then
 else
     r=PASS
 fi
-echo "$s    $r    $wrk/div"
+[ $vbs ] && echo "$s    $r    $wrk/div"
 [ $r = "0" -o $r = PASS ] || exit $r
 wc -l "$wrk/div"/*.idv | head -n-1 | awk '{print $1,$2}' > "$wrk/bsz"
 [ $vbs ] && peek "$wrk/bsz" 3 "  "
-[ $vbs ] && echo "M=$nbt batches put under \"$wrk/div\"." && HR
+[ $vbs ] && echo "$S: M=$nbt batches put under \"$wrk/div\"." && HR
 
 
 ## divide genotype
 K=/dev/null                     # sink
-[ $vbs ] && echo "$S: divide genotype by \"*.idv\" under \"$wrk/div\":"
+[ $vbs ] && echo "$S: divide genotype by \"$wrk/div/*.idv\":"
 while IFS= read -r f            # genotype files
 do
     g=${f//[ \/]/_}             # genotype id
@@ -242,22 +239,22 @@ do
         then
             s=$([ $erase ] && echo ERASE || echo EXIST)
         else
-            s=CREAT
+            s=CREATE
         fi
 
         # commence batch extraction?
         r=PASS
-        if [ $s = ERASE -o $s = CREAT ]; then
+        if [ $s = ERASE -o $s = CREATE ]; then
             sort "$f.fam" -k2,2 | join - "$b.iid" -1 2 -o 1.1,1.2 > "$b.cid"
             plink --bfile "$f" --keep "$b.cid" --keep-allele-order \
                   --make-bed --out "$o" &>$K
             r=${PIPESTATUS[0]}
         fi
-        echo "  $s  $r  $o"   # report, exit on error
+        [ $vbs ] && echo "  $s  $r  $o"   # report, exit on error
         [ $r = "0" ] || [ $r = PASS ] || exit $r
     done
 done < "$wrk/gls"
-[ $vbs ] && echo "$S: $ngt genotype divided under \"{w}/div\"." && HR
+[ $vbs ] && echo "$S: $ngt genotype divided under \"wrk/div\"." && HR
 
 
 # merge genotype for each batch
@@ -270,37 +267,33 @@ do
     pass=n
     if [ -s "$o.bed" -a -s "$o.bim" -a -s "$o.fam" ]
     then
-        if [ -z $erase ]
-        then
-            echo -ne EXIST\\t
+        if [ -z $erase ]; then
+            [ $vbs ] && echo -ne "  "EXIST"  "
             pass=y
         else
-            echo -ne ERASE\\t
+            [ $vbs ] && echo -ne "  "ERASE"  "
         fi
     else
-        echo -ne CREAT\\t
+        [ $vbs ] && echo -ne "  "CREATE" "
     fi
 
     # do not pass the batch extraction
     if [ $pass = y ]
     then
-        echo -ne PASS\\t
+        [ $vbs ] && echo "PASS  $o"
     else
-        plink --merge-list "$o.lst" --keep-allele-order --make-bed \
-               --out "$o" >$K
-        echo -ne $?\\t
+        plink --merge-list "$o.lst" --keep-allele-order --make-bed --out "$o" >$K
+        [ $vbs ] && echo "$?  $o"
     fi
-    echo "$o"
 done
-echo "result is written to" "$out"
+[ $vbs ] && echo "$S: results are under:" "$out" && HR
 
 
-# reaching this point, the sample division is successful,
-# therefore we can safely delete intermediate files.
+# clean up
 if [ $retain ]
 then
-    [ $vbs ] && echo MSG: "$wrk" - retained.
+    [ $vbs ] && echo "$S: retain \"$wrk\" and files." && HR
 else
-    [ $vbs ] && echo MSG: "$wrk" - clean up.
-    rm -rf "$wrk" "$out"/*.{log,lst}
+    rm -rf "$wrk" "$out"/*.{lst,log}
+    [ $vbs ] && echo "$S: remove \"$wrk\" and files." && HR
 fi
