@@ -17,16 +17,16 @@ It divides genotype samples into batches.
 
   - often genotype is stored by chromosomes, the tool accepts multiple inputs.
     
-Currently, only [PLINK 1 BED][BED] format is supported.
+Currently, only [plink 1.x binary][PLINK:BED] format is supported.
 
 [bat.sh]: https://github.com/xiaoran831213/gtools/blob/master/src/bat.sh
-[BED]: https://www.cog-genomics.org/plink/1.9/formats#bed
+[PLINK:BED]: https://www.cog-genomics.org/plink/1.9/formats#bed
 
 
 ## Some examples:
 
-  -  divide the  4 segment genotype *xaa* - *xad*  in __dat/test/001__ into 5
-    batches in __5bt__:
+  - divide  the 4  segment genotype  *xaa - xad*  under __dat/test/001__  into 5
+    batches under __5bt__:
 
     ```sh
     ls dat/test/001/xa[abcd].*
@@ -62,11 +62,11 @@ Currently, only [PLINK 1 BED][BED] format is supported.
 
 The tool uses [plink1]  to take out one batch at a time,  thus, instead of going
 through the  genotype just once,  it repeatedly reads  the data for  each batch.
-Converting the [BED] into text based,  sample-major [PED] might work, but PED is
-considered deprecated and difficult to preserve allele information.
+Converting [BED][PLINK:BED] into text based, sample-major [PED][PLINK:PED] might
+work, but PED is deprecated and difficult to preserve allele information.
 
 [plink1]: https://www.cog-genomics.org/plink/1.9/
-[PED]: https://www.cog-genomics.org/plink/1.9/formats#ped
+[PLINK:PED]: https://www.cog-genomics.org/plink/1.9/formats#ped
 
 
 # variant match: [vmt.sh]
@@ -132,6 +132,16 @@ Under __dat/test__, **005_gno.bim** is the  table of variants of input genotype,
     `cut -f7 mt1.act | sort  | uniq -c` for a summary, in this  example, B + F +
     N  +  S  =  551  equals  the number  of  matches  found  in  __mt1.bim__  or
     __mt1.rmt__.
+    
+
+# gene separator: [gsp.sh]
+
+  Break up  a whole  genome into  many smaller  files, according  to a  table of
+  genome features  (i.e., genes) with  a format similar to  UCSC [BED][UCSC:BED]
+  files.
+
+
+[UCSC:BED]: https://genome.ucsc.edu/FAQ/FAQformat.html#format1
 
 <!--  LocalWords:  xaa xad dat 5bt abcd src wc fam s15 4bt idv PED vmt GWAS BIM
  -->
