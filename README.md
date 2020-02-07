@@ -141,6 +141,7 @@ Under __dat/test__, **005_gno.bim** is the  table of variants of input genotype,
   files.
 
 
+[gsp.sh]: https://github.com/xiaoran831213/gtools/blob/master/src/gsp.sh
 [UCSC:BED]: https://genome.ucsc.edu/FAQ/FAQformat.html#format1
 
 <!--  LocalWords:  xaa xad dat 5bt abcd src wc fam s15 4bt idv PED vmt GWAS BIM
