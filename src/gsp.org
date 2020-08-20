@@ -1,0 +1,355 @@
+#+TITLE: Seperate Genes
+#+AUTHOR: Tong, Xiaoran
+#+OPTIONS: ^:{}
+
+* Prerequisite
+  Some knowledge of Linux shell  is required.
+
+  Most polymorphism genotype  comes in PLINK1 binary file set  ([[https://www.cog-genomics.org/plink/1.9/formats#bed][BED)]] or blocked
+  compressed variant call  format ([[https://en.wikipedia.org/wiki/Variant_Call_Format][VCF]]). Make sure at  least [[https://www.cog-genomics.org/plink/1.9/][PLINK1.9]] available
+  from the command line.  It would be helpful to have [[https://www.htslib.org/doc/bcftools.html][bcftools]] as well.
+
+  Note: On MSU HPCC, these tools  are available via "module spider" and "module
+  load".
+
+  Genes are intervals in the genome,  preferablly documented in [[http://www.genome.ucsc.edu/FAQ/FAQformat.html#format1][UCSC BED]] format
+  (not [[https://www.cog-genomics.org/plink/1.9/formats#bed][PLINK1 BED]]). To manipulate  the intervals easily, use [[https://bedtools.readthedocs.io][bedtools]] developed
+  at the University of Utah.
+
+* Search the List of Genes
+  To extract genes from a polymorphism data (i.e., SNPs), we need a descriptive
+  table of each gene, with its name,  the chromosome it belongs to, the range it
+  spans in that chromosome, and the strand to transcript.
+
+  There are at least three sources we can find this information.
+
+** NIH NCBI
+   From NCBI  [[https://ftp.ncbi.nih.gov][ftp]] site we  can browse and directly  download a table  of genome
+   features which includes the genes.
+
+   The path leading to the said table starts with "[[https://ftp.ncbi.nih.gov/genomes/refseq][genomes/refseq]]", followed by
+   directory structures named after species, for example,
+     - "[[https://ftp.ncbi.nih.gov/genomes/refseq/vertebrate_mammalian/Homo_sapiens][vertebrate_mammalian/Homo_sapiens]]"
+   is for humans.
+
+   Further  down to  a directory  named  "[[https://ftp.ncbi.nih.gov/genomes/refseq/vertebrate_mammalian/Homo_sapiens/all_assembly_versions][all_assembly_versions]]" is  a list  of
+   genome assemblies.  We  must go into the right one  which the genotype calls
+   used.   For example,  earlier human  genotype  calls often  used version  37
+   assembly, we can  use its latest patch,  which is [[https://ftp.ncbi.nih.gov/genomes/refseq/vertebrate_mammalian/Homo_sapiens/all_assembly_versions/GCF_000001405.25_GRCh37.p13][GRCh37.p13]] at  the time of
+   writting.  For more recent genotype based on version 38, we can go under the
+   latest patch which is [[https://ftp.ncbi.nih.gov/genomes/refseq/vertebrate_mammalian/Homo_sapiens/all_assembly_versions/GCF_000001405.38_GRCh38.p12][GRCh38.p12]] at the time of writting.
+
+   No matter  which version of assembly  we go under, the  compressed file with
+   "feature_table" in name is the one we want, for example,
+     - "[[https://ftp.ncbi.nih.gov/genomes/refseq/vertebrate_mammalian/Homo_sapiens/all_assembly_versions/GCF_000001405.38_GRCh38.p12/GCF_000001405.38_GRCh38.p12_feature_table.txt.gz][GCF_000001405.38_GRCh38.p12_feature_table.txt.gz]]"
+   is the feature table for human genome assembly 38. We right click the file and
+   "copy link location" into the clip board.
+
+   The following  shell script download and  exam the table of  genome features
+   for human assembly version 38.
+   #+BEGIN_SRC sh
+     # create a directory for "gene separation (gsp)"
+     mkdir -p ~/gsp; cd ~/gsp
+
+     # download genome features from NCBI ftp
+     ftp=https://ftp.ncbi.nih.gov
+     url=$ftp/genomes/refseq
+     url=$url/vertebrate_mammalian/Homo_sapiens
+     url=$url/all_assembly_versions/GCF_000001405.38_GRCh38.p12
+     url=$url/GCF_000001405.38_GRCh38.p12_feature_table.txt.gz
+     wget $url -O ncbi_h38_gft.txt.gz
+
+     # preview the header
+     zcat ncbi_h38_gft.txt.gz | head -n 1 | tr '\t' '\n' | awk '{print NR"\t"$0}'
+
+     # preview a few lines
+     zcat ncbi_h38_gft.txt.gz | head -n 6 | column -t -s $'\t'
+
+     # list chromosomes, and count genes in each chromosome
+     zcat ncbi_h38_gft.txt.gz | tail -n+2 | cut -f6 | sort -k1n,1 | uniq -c
+
+     # interactive preview:
+     # zcat ncbi_h38_gft.txt.gz | less -Sx20
+   #+END_SRC
+
+   Note: since  we have right-click  and copied the  link, one can  simple type
+   "wget -O ncbi_h38_gft.gz", paste the link behind it, and hit "Enter" to start the
+   download.
+
+   By examing the file, it is clear we  should only retain lines that
+   - describe "gene" feature (column 1);
+   - are "protein_coding" class (column 2);
+   - belong to non-blank chromosome (column 6).
+
+   Also, we should extract six columns in the following order
+   1. col  6: chromosome
+   2. col  8: start basepair
+   3. col  9: end
+   4. col 15: symbol
+   5. a column of 0 (not useful for us but required by UCSC BED format)
+   6. col 10: strand
+   7. col 14: name (actually a short description)
+
+   These columns follows the USSC BED standard format (not to be confused PLINK
+   BED), which can be convenience later.  Fill zeros in the 5th column and drop
+   the header line to enforces UCSC BED format. 
+
+   The following shell script will finish the job.
+   #+BEGIN_SRC sh
+     cd ~/gsp
+
+     # extract genes and necessary columns, drop the header
+     zcat ncbi_h38_gft.txt.gz | \
+	 awk -v FS=$'\t' -v OFS=$'\t' '
+	 $1=="gene" && $2=="protein_coding" && $6!=""\
+	 {	
+	     print "chr"$6,$8,$9,$15,0,$10,$14
+	 }' | gzip > ncbi_h38_gen.bed.gz
+
+     # preview a few lines
+     zcat ncbi_h38_gen.bed.gz | head -n 6   | column -t -s $'\t'
+
+     # list chromosomes, and count genes in each chromosome
+     zcat ncbi_h38_gen.bed.gz | tail -n+2 | cut -f1 | sort -k1.4n,1 | uniq -c
+
+     # genes in total
+     zcat ncbi_h38_gen.bed.gz | wc -l
+   #+END_SRC
+   If this script run successfully, rought 22K human genes should show up in
+   the resulting _"ncbi_h38_gen.bed.gz"_.
+
+** UCSC
+   - Note taken on [2020-08-13 Thu 07:12] \\
+     htp=https://hgdownload.soe.ucsc.edu
+          https://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/refGene.sql
+          url=$htp/goldenPath
+          url=$url/hg38/database
+          url=$url/refGene.txt.gz
+          wget $url -O ucsc_h38_refGene.txt.gz
+   UCSC provides another resource.  Start  with the easy-to-Google UCSC browser
+   [[https://genome.ucsc.edu/][gateway]], click "Downloads" in the toolbar then "Genome Data" in the dropdown
+   list, which leads us to the main [[https://hgdownload.soe.ucsc.edu/downloads.html][downloads]] page.
+
+   Similar to NCBI, we choose the species  of interest. As an example, we click
+   "[[https://hgdownload.soe.ucsc.edu/downloads.html#human][Human]]" to jump to the corresponding section in the page.
+
+   Next we  must choose the  right genome assembly.   For older calls  based on
+   version 37, go  to the sub secion titled "Feb.   2009 (GRCh37/hg19)".  As an
+   example however, we use version  38 under "Dec.  2013 (GRCh38/hg38)", expand
+   "Annotations", then click [[https://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/][SQL dump]] which lands us in the page of files.
+
+   In the page, search "refFlat", and locate two files
+   - [[https://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/refGene.txt.gz][refGene.txt.gz]]: the tab-delimited table of genes;
+   - [[https://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/refGene.sql][refGene.sql]]   : SQL that created the table, serves as a dictaionary.
+
+   Open the tiny SQL script "refGene.sql",  which reveals useful columns in the
+   main file "refGene.txt.gz":
+   1) col  3: chromosome
+   2) col  5: txStart (from bp)
+   3) col  6: txEnd (to bp)
+   4) col 13: name2 (gene symbol)
+   5) col 12: score (not useful for us but required by UCSC BED format)
+   6) col  4: strand (+/-)
+
+   We use the follow shell scripts to  downlad and exam the gene table, extract
+   useful columns, and  exam the result.  Again, right click  and copy the link
+   to [[https://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/refGene.txt.gz][refGene.txt.gz]] can save typing.
+   #+BEGIN_SRC sh
+     # create a directory for "gene separation (gsp)"
+     mkdir -p ~/gsp; cd ~/gsp
+
+     # download gene table from UCSC SQL Dump
+     htp=https://hgdownload.soe.ucsc.edu
+     https://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/refGene.sql
+     url=$htp/goldenPath
+     url=$url/hg38/database
+     url=$url/refGene.txt.gz
+     wget $url -O ucsc_h38_refGene.txt.gz
+
+     # preview a few lines
+     zcat ucsc_h38_refGene.txt.gz | head -n 6 | column -t -s $'\t'
+
+     # list chromosomes, count genes in each chromosome
+     zcat ucsc_h38_refGene.txt.gz | cut -f3 | sort -k1n,1 | uniq -c
+
+     # interactive preview:
+     # zless -Sx20 ucsc_h38_refGene.txt.gz
+   #+END_SRC
+   Listing chromosomes show many non-standard names  other than 1-22, X, Y, and
+   MT. It is necessary to remoeve these lines. 
+
+   The following script  extract the six useful columns, and  only retain genes
+   located on standard chromosomes.
+   #+BEGIN_SRC sh
+     # extract useful columns and genes in chromosome 1-22, X, Y and MT
+     zcat ucsc_h38_refGene.txt.gz | \
+	 awk -v FS=$'\t' -v OFS=$'\t' '
+	     $3 ~ /^chr[XYM0-9]+$/ \
+	     {
+		 print $3,$5,$6,$13,$12,$4
+	     }' | gzip >ucsc_h38_gen.bed.gz
+
+     # preview a few lines
+     zcat ucsc_h38_gen.bed.gz | head -n 6   | column -t -s $'\t'
+
+     # list chromosomes, and count genes in each chromosome
+     zcat ucsc_h38_gen.bed.gz | tail -n+2 | cut -f1 | sort -k1n,1 | uniq -c
+
+     # genes in total
+     zcat ucsc_h38_gen.bed.gz | wc -l
+   #+END_SRC
+
+   The UCSC output  has 70K + lines  which are too numerious  compared to NCBI,
+   many of which overlap. Thus, we  require another software, [[https://bedtools.readthedocs.io/en/latest/][bedTools]] to merge
+   overlapped genes.
+
+   The prefix "[[https://bedtools.readthedocs.io/en/latest/content/general-usage.html#bed-format][bed]]" exactly refers to  the UCSC BED format describing intervals
+   in the genome, this  is why we took out the six  particular columns from the
+   downloaded table of genes in a particular order.
+
+   The script use command "[[http://quinlanlab.org/tutorials/bedtools/bedtools.html#bedtools-merge][bedtools merge]]" to combine overlapped genes.
+   #+BEGIN_SRC sh
+     cd ~/gsp
+
+     # decompress
+     gunzip ucsc_h38_gen.bed.gz
+
+     # sort by (1) chromosome, and (2) from-bp
+     sort ucsc_h38_gen.bed -k1,1b -k2,2n > ucsc_h38_gen.bed.sorted
+
+     # merge overlapped intervals, strand sensitive
+     bedtools merge -i ucsc_h38_gen.bed.sorted -s -c 4,5,6,4 \
+	      -o first,sum,distinct,collapse > ucsc_h38_gen.bed.merged
+
+     # preview and count merged genes
+     head  ucsc_h38_gen.bed.merged
+     wc -l ucsc_h38_gen.bed.merged	# roughly 25K - 26K
+
+     # re-compress and clean up
+     gzip ucsc_h38_gen.bed.merged -c > ucsc_h38_gen.bed.gz
+     rm ucsc_h38_gen.bed ucsc_h38_gen.bed.{sorted,merged}
+   #+END_SRC
+
+   The command command "[[http://quinlanlab.org/tutorials/bedtools/bedtools.html#bedtools-merge][bedtools merge]]" output the following columns
+   1) (mandatory) chromosome
+   2) (mandatory) starting bp of the first gene
+   3) (mandatory) ending bp of the last gene
+   4) name of first gene
+   5) total scores of overlapping genes
+   6) strand, either + or -
+   7) collapsed names of overlapping genes
+   After merging, there are roughly 25K genes, which is quite close to NCBI.
+
+** Enselbe.org
+   We can query [[https://www.ensembl.org][ENSEMBL]] database and export  a table of genes, using the [[https://www.ensembl.org/biomart/martview][BioMart]]
+   interface it provides.
+  
+   - goto the [[https://www.ensembl.org][www.ensembl.org]] main page
+   - find [[https://www.ensembl.org/biomart/martview][BioMart]] at the top, toolbar like section
+   - in BioMart interface,
+     * CHOOSE DATABASE: "Ensembl Gene #"
+     * CHOOSE DATASET:  "Human genes ...", beware of the assembly version;
+     * Find "Filters" to the left,
+       - expand "REGION", select chromosomes 1-22, X, Y, and MT;
+       - (optional) in "PHENOTYPE", select phenotype(s) of interests;
+       - expand "GENE", under "Gene type" select "protein_coding";
+     * Find "Attributes" to the left,
+       - expand "GENE",  uncheck all, then  check 
+         1) stable ID
+         2) chromosome
+         3) start
+         4) end
+         5) name
+         6) strand
+         7) description
+     * Push "Result" on the top-left, preview the query;
+     * Export "Unique results" to "Compressed file (.gz)" in "TSV", and "Go".
+   - Transfer the downloaded  file to HPCC (via Filezilla or  scp), and name it
+     "ensb_h38_gen.tsv.gz"
+
+   After the transfer, the following script exam the Ensembl gene table, convert
+   it to UCSC BED, merge overlapped the genes, and recount.
+   #+BEGIN_SRC sh
+     cd ~/gsp
+
+     # preview the headers
+     zcat ensb_h38_gen.tsv.gz | head -n 1 | tr '\t' '\n' | awk '{print NR"\t"$0}'
+
+     # preview a few lines
+     zcat ensb_h38_gen.tsv.gz | head -n 6 | column -t -s $'\t'
+
+     # number of genes in each chromosome, and in total
+     zcat ensb_h38_gen.tsv.gz | tail -n+2 | cut -f2 | sort -k1.4n,1 | uniq -c
+     zcat ensb_h38_gen.tsv.gz | tail -n+2 | wc -l
+
+     # convert to UCSC BED
+     zcat ensb_h38_gen.tsv.gz | awk -v OFS=$'\t' '
+	  NR>1 {$6=$6>0?"+":"-"; print "chr"$2,$3,$4,$5,0,$6,$1}' | gzip >ensb_h38_gen.bed.gz
+
+     # merge overlapped, using pipes
+     zcat ensb_h38_gen.bed.gz | sort -k1,1b -k2,2n | \
+	 bedtools merge -i - -s -c 4,5,6,4 -o first,sum,distinct,collapse > ensb_h38_gen.bed.merged
+
+     # preview a few lines
+     head ensb_h38_gen.bed.merged | column -t
+
+     # number of genes in each chromosome, and in total
+     cut -f1 ensb_h38_gen.bed.merged | sort -k1.4n,1 | uniq -c
+     wc -l ensb_h38_gen.bed.merged
+
+     # compress, clean up
+     gzip ensb_h38_gen.bed.merged -c >ensb_h38_gen.bed.gz
+     rm ensb_h38_gen.bed.merged
+   #+END_SRC
+
+   The query on  ENSEMBL listed nealy 20K protein coding  genes, after merging,
+   this number reduced to 18K.
+
+** Intergenic regions
+   With a table of genes in [[http://www.genome.ucsc.edu/FAQ/FAQformat.html#format1][UCSC BED]], use [[http://quinlanlab.org/tutorials/bedtools/bedtools.html#bedtools-complement][bedtools complement]] to write down the
+   intergenic regions.
+
+   We also need a  file giving the length of each chromosome  (why).  We can go
+   to the [[https://www.ncbi.nlm.nih.gov/grc][Genome Reference Consortium  (GRC)]], navigate through [[https://www.ncbi.nlm.nih.gov/grc/data][data]], [[https://www.ncbi.nlm.nih.gov/grc/data][human]], and
+   [[https://www.ncbi.nlm.nih.gov/grc/human/data][human assembly data]] for a table of chromosome lengths.
+
+   However,  [[https://www.ncbi.nlm.nih.gov/grc][GRC]]  only provides  model  organisms  such  as human,  mouse,  and
+   zebrafish.  To seperate  genes, it surfice to assume the  the basepair count
+   at end of each chromosome is infinite.
+
+   #+BEGIN_SRC sh
+     cd ~/gsp
+
+     # fabricate a table of chromosome lengths
+     for c in {1..22} {X,Y,M,MT}; do
+	 echo -e "chr${c}\t999999999"
+     done | sort -k1,1b > h38_chr.txt
+
+     # exam
+     cat h38_chr.txt
+
+     # find intergenic regions
+     zcat ncbi_h38_gen.bed.gz | sort -k1,1b -k2,2n | bedtools complement -i - -g h38_chr.txt | \
+	 gzip > ncbi_h38_igr.bed.gz
+     zcat ucsc_h38_gen.bed.gz | sort -k1,1b -k2,2n | bedtools complement -i - -g h38_chr.txt | gzip > ucsc_h38_igr.bed.gz
+     zcat ensb_h38_gen.bed.gz | sort -k1,1b -k2,2n | bedtools complement -i - -g h38_chr.txt | gzip > ensb_h38_igr.bed.gz
+   #+END_SRC
+
+   It looks like [[http://quinlanlab.org/tutorials/bedtools/bedtools.html#bedtools-complement][bedtools complement]] does not provide options to output the two
+   genes adjacent to  an intergenic region. To solve this  issue, We can create
+   another UCSC BED table.
+
+   #+BEGIN_SRC sh
+     cd ~/gsp
+
+     # pair the end of gene_{k} with the start of gene_{k+1}:
+     paste <(zcat ucsc_h38_gen.bed.gz | head -n-2 | cut -f1,3) \
+	   <(zcat ucsc_h38_gen.bed.gz | tail -n+2 | cut -f2,4,6,7) \
+	 | awk '{$3=($2>$3?999999998:$3);print $0}' > ucsc_h38_igr.txt
+
+     # preview
+     head ucsc_h38_igr.txt | column -t
+
+   #+END_SRC
+
+* Seperate Genes
