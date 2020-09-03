@@ -2,7 +2,10 @@
 
 # print horizontal ruler
 hr="#------------------------------------------------------------------------------#"
-alias HR='echo $hr'
+# alias HR='echo $hr'
+HR() {
+    echo $hr
+}
 
 # print number of lines
 NL() {
@@ -89,4 +92,13 @@ dnew() {
         mkdir -m0775 -p "$1"; r=$?; [ $r = "0" ] || exit $r
         echo CREATE
     fi
+}
+
+# generate a  reproducible arbitrary amount  of pseudo-random data given  a seed
+# value, see
+# https://www.gnu.org/software/coreutils/manual/html_node/Random-sources.html#Random-sources
+get_seeded_random()
+{
+  seed="$1"
+  openssl enc -aes-256-ctr -pass pass:"$seed" -nosalt </dev/zero 2>/dev/null
 }

@@ -1,27 +1,29 @@
-#+TITLE: Seperate Genes
+#+TITLE: Extract Genes from Variant Genotype
 #+AUTHOR: Tong, Xiaoran
+#+STARTIP: overview 
+#+REVEAL_ROOT: https://cdn.jsdelivr.net/npm/reveal.js
+#+REVEAL_THEME: beige
+#+OPTIONS: num:nil
 #+OPTIONS: ^:{}
+#+PROPERTY: header-args:sh :eval no
+#+PROPERTY: EXPORT_REVEAL_MARGIN: 50
 
 * Prerequisite
-  Some knowledge of Linux shell  is required.
-
-  Most polymorphism genotype  comes in PLINK1 binary file set  ([[https://www.cog-genomics.org/plink/1.9/formats#bed][BED)]] or blocked
+  - Some knowledge of Linux shell  is required.
+  - Most polymorphism genotype  comes in PLINK1 binary file set  ([[https://www.cog-genomics.org/plink/1.9/formats#bed][BED)]] or blocked
   compressed variant call  format ([[https://en.wikipedia.org/wiki/Variant_Call_Format][VCF]]). Make sure at  least [[https://www.cog-genomics.org/plink/1.9/][PLINK1.9]] available
   from the command line.  It would be helpful to have [[https://www.htslib.org/doc/bcftools.html][bcftools]] as well.
-
-  Note: On MSU HPCC, these tools  are available via "module spider" and "module
+  - Note: On MSU HPCC, these tools  are available via "module spider" and "module
   load".
-
-  Genes are intervals in the genome,  preferablly documented in [[http://www.genome.ucsc.edu/FAQ/FAQformat.html#format1][UCSC BED]] format
+  - Genes are intervals in the genome,  preferablly documented in [[http://www.genome.ucsc.edu/FAQ/FAQformat.html#format1][UCSC BED]] format
   (not [[https://www.cog-genomics.org/plink/1.9/formats#bed][PLINK1 BED]]). To manipulate  the intervals easily, use [[https://bedtools.readthedocs.io][bedtools]] developed
   at the University of Utah.
 
 * Search the List of Genes
-  To extract genes from a polymorphism data (i.e., SNPs), we need a descriptive
+  - To extract genes from a polymorphism data (i.e., SNPs), we need a descriptive
   table of each gene, with its name,  the chromosome it belongs to, the range it
   spans in that chromosome, and the strand to transcript.
-
-  There are at least three sources we can find this information.
+  - There are at least three sources we can find this information.
 
 ** NIH NCBI
    From NCBI  [[https://ftp.ncbi.nih.gov][ftp]] site we  can browse and directly  download a table  of genome
@@ -72,23 +74,23 @@
      # zcat ncbi_h38_gft.txt.gz | less -Sx20
    #+END_SRC
 
-   Note: since  we have right-click  and copied the  link, one can  simple type
+   - Note: since  we have right-click  and copied the  link, one can  simple type
    "wget -O ncbi_h38_gft.gz", paste the link behind it, and hit "Enter" to start the
    download.
 
-   By examing the file, it is clear we  should only retain lines that
-   - describe "gene" feature (column 1);
-   - are "protein_coding" class (column 2);
-   - belong to non-blank chromosome (column 6).
+   - By examing the file, it is clear we  should only retain lines that
+     - describe "gene" feature (column 1);
+     - are "protein_coding" class (column 2);
+     - belong to non-blank chromosome (column 6).
 
-   Also, we should extract six columns in the following order
-   1. col  6: chromosome
-   2. col  8: start basepair
-   3. col  9: end
-   4. col 15: symbol
-   5. a column of 0 (not useful for us but required by UCSC BED format)
-   6. col 10: strand
-   7. col 14: name (actually a short description)
+   - Also, we should extract six columns in the following order
+     1. col  6: chromosome
+     2. col  8: start basepair
+     3. col  9: end
+     4. col 15: symbol
+     5. a column of 0 (not useful for us but required by UCSC BED format)
+     6. col 10: strand
+     7. col 14: name (actually a short description)
 
    These columns follows the USSC BED standard format (not to be confused PLINK
    BED), which can be convenience later.  Fill zeros in the 5th column and drop
@@ -115,8 +117,27 @@
      # genes in total
      zcat ncbi_h38_gen.bed.gz | wc -l
    #+END_SRC
-   If this script run successfully, rought 22K human genes should show up in
-   the resulting _"ncbi_h38_gen.bed.gz"_.
+   - roughly 22K human genes should show up in _"ncbi_h38_gen.bed.gz"_.
+
+   #+REVEAL: split
+   - to  retrieve the  table for  GRCh37, use  similar scripts  but change  the
+     filenames accordingly.
+   #+BEGIN_SRC sh
+     mkdir -p ~/gsp; cd ~/gsp           # working directory
+
+     ftp=https://ftp.ncbi.nih.gov       # download
+     url=$ftp/genomes/refseq
+     url=$url/vertebrate_mammalian/Homo_sapiens
+     url=$url/all_assembly_versions/GCF_000001405.25_GRCh37.p13
+     url=$url/GCF_000001405.25_GRCh37.p13_feature_table.txt.gz
+     wget $url -O ncbi_h37_gft.txt.gz
+
+     # extract
+     zcat ncbi_h37_gft.txt.gz | \
+	 awk -v FS=$'\t' -v OFS=$'\t' \
+	     '$1=="gene" && $2=="protein_coding" && $6!="" {print "chr"$6,$8,$9,$15,0,$10,$14}' | \
+	 gzip > ncbi_h37_gen.bed.gz
+   #+END_SRC
 
 ** UCSC
    - Note taken on [2020-08-13 Thu 07:12] \\
@@ -185,12 +206,12 @@
      zcat ucsc_h38_refGene.txt.gz | \
 	 awk -v FS=$'\t' -v OFS=$'\t' '
 	     $3 ~ /^chr[XYM0-9]+$/ \
-	     {
-		 print $3,$5,$6,$13,$12,$4
+	     { \
+		 print $3,$5,$6,$13,$12,$4 \
 	     }' | gzip >ucsc_h38_gen.bed.gz
 
      # preview a few lines
-     zcat ucsc_h38_gen.bed.gz | head -n 6   | column -t -s $'\t'
+     zcat ucsc_h38_gen.bed.gz | head -n 6 | column -t -s $'\t'
 
      # list chromosomes, and count genes in each chromosome
      zcat ucsc_h38_gen.bed.gz | tail -n+2 | cut -f1 | sort -k1n,1 | uniq -c
@@ -241,9 +262,7 @@
    After merging, there are roughly 25K genes, which is quite close to NCBI.
 
 ** Enselbe.org
-   We can query [[https://www.ensembl.org][ENSEMBL]] database and export  a table of genes, using the [[https://www.ensembl.org/biomart/martview][BioMart]]
-   interface it provides.
-  
+   Search [[https://www.ensembl.org][ENSEMBL]] for a table  of genes, using [[https://www.ensembl.org/biomart/martview][BioMart]].
    - goto the [[https://www.ensembl.org][www.ensembl.org]] main page
    - find [[https://www.ensembl.org/biomart/martview][BioMart]] at the top, toolbar like section
    - in BioMart interface,
@@ -271,10 +290,8 @@
    it to UCSC BED, merge overlapped the genes, and recount.
    #+BEGIN_SRC sh
      cd ~/gsp
-
      # preview the headers
      zcat ensb_h38_gen.tsv.gz | head -n 1 | tr '\t' '\n' | awk '{print NR"\t"$0}'
-
      # preview a few lines
      zcat ensb_h38_gen.tsv.gz | head -n 6 | column -t -s $'\t'
 
@@ -283,13 +300,16 @@
      zcat ensb_h38_gen.tsv.gz | tail -n+2 | wc -l
 
      # convert to UCSC BED
-     zcat ensb_h38_gen.tsv.gz | awk -v OFS=$'\t' '
+     zcat ensb_h38_gen.tsv.gz | awk -v OFS=$'\t' ' \
 	  NR>1 {$6=$6>0?"+":"-"; print "chr"$2,$3,$4,$5,0,$6,$1}' | gzip >ensb_h38_gen.bed.gz
-
      # merge overlapped, using pipes
      zcat ensb_h38_gen.bed.gz | sort -k1,1b -k2,2n | \
 	 bedtools merge -i - -s -c 4,5,6,4 -o first,sum,distinct,collapse > ensb_h38_gen.bed.merged
-
+   #+END_SRC
+   
+   #+REVEAL: split
+   Exam the table
+   #+BEGIN_SRC sh
      # preview a few lines
      head ensb_h38_gen.bed.merged | column -t
 
@@ -301,9 +321,23 @@
      gzip ensb_h38_gen.bed.merged -c >ensb_h38_gen.bed.gz
      rm ensb_h38_gen.bed.merged
    #+END_SRC
-
-   The query on  ENSEMBL listed nealy 20K protein coding  genes, after merging,
-   this number reduced to 18K.
+   The query listed nealy 20K protein  coding genes, after merging, this number
+   reduced to 18K.
+   #+REVEAL: split
+   - for genes aligned to GRCh37 on [[https://www.ensembl.org][ENSEMBL]], goto the dedicated [[https://grch37.ensembl.org/index.html][legacy site]].
+   - name the download to *ensb_h37_gen.tsv.gz*, rest of the work are similar.
+     #+BEGIN_SRC sh
+       cd ~/gsp
+       # convert to UCSC BED
+       zcat ensb_h37_gen.tsv.gz | awk -v OFS=$'\t' ' \
+	    NR>1 {$6=$6>0?"+":"-"; print "chr"$2,$3,$4,$5,0,$6,$1}' | gzip >ensb_h37_gen.bed.gz
+       # merge overlapped, using pipes
+       zcat ensb_h37_gen.bed.gz | sort -k1,1b -k2,2n | \
+	   bedtools merge -i - -s -c 4,5,6,4 -o first,sum,distinct,collapse > ensb_h37_gen.bed.merged
+       # compress and clean up
+       gzip ensb_h37_gen.bed.merged -c >ensb_h37_gen.bed.gz
+       rm ensb_h37_gen.bed.merged
+    #+END_SRC
 
 ** Intergenic regions
    With a table of genes in [[http://www.genome.ucsc.edu/FAQ/FAQformat.html#format1][UCSC BED]], use [[http://quinlanlab.org/tutorials/bedtools/bedtools.html#bedtools-complement][bedtools complement]] to write down the
@@ -319,7 +353,6 @@
 
    #+BEGIN_SRC sh
      cd ~/gsp
-
      # fabricate a table of chromosome lengths
      for c in {1..22} {X,Y,M,MT}; do
 	 echo -e "chr${c}\t999999999"
@@ -331,8 +364,13 @@
      # find intergenic regions
      zcat ncbi_h38_gen.bed.gz | sort -k1,1b -k2,2n | bedtools complement -i - -g h38_chr.txt | \
 	 gzip > ncbi_h38_igr.bed.gz
-     zcat ucsc_h38_gen.bed.gz | sort -k1,1b -k2,2n | bedtools complement -i - -g h38_chr.txt | gzip > ucsc_h38_igr.bed.gz
-     zcat ensb_h38_gen.bed.gz | sort -k1,1b -k2,2n | bedtools complement -i - -g h38_chr.txt | gzip > ensb_h38_igr.bed.gz
+     zcat ucsc_h38_gen.bed.gz | sort -k1,1b -k2,2n | bedtools complement -i - -g h38_chr.txt | \
+         gzip > ucsc_h38_igr.bed.gz
+     zcat ensb_h38_gen.bed.gz | sort -k1,1b -k2,2n | bedtools complement -i - -g h38_chr.txt | \
+         gzip > ensb_h38_igr.bed.gz
+	 
+     # clean up
+     rm h38_chr.txt
    #+END_SRC
 
    It looks like [[http://quinlanlab.org/tutorials/bedtools/bedtools.html#bedtools-complement][bedtools complement]] does not provide options to output the two
@@ -352,4 +390,231 @@
 
    #+END_SRC
 
+* Get Test Genotype
+  - for demonstration, use *1000 genomes phase 3*;
+    * the phase 3 sequencing aligns to GRCh37;
+    * variant data is host on [[ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/][EBI FTP]] site and [[ftp://ftp-trace.ncbi.nih.gov/1000genomes/ftp/release/20130502/][NCBI Mirror]];
+    * existing downloads on MSU HPCC:
+      */mnt/research/StatGen/kgp/raw/000*
+  - use chromosome 7, 13, and 22 as examples, copy the three into *~/gsp*
+  #+REVEAL: split
+  - inspect genotype data in VCF
+    #+BEGIN_SRC sh :exports both :eval yes
+    cd ~/gsp			# working directory
+    ls -lgGh [0-9][0-9].vcf.gz*	# exam variants in chromosomes
+    #+END_SRC
+
+    #+RESULTS:
+    | -rw-r-x--- | 1 | 866M | Sep | 2 | 23:52 | 07.vcf.gz     |
+    | -rw-r-x--- | 1 | 155K | Sep | 2 | 23:52 | 07.vcf.gz.tbi |
+    | -rw-r-x--- | 1 | 532M | Sep | 2 | 23:52 | 13.vcf.gz     |
+    | -rw-r-x--- | 1 | 95K  | Sep | 2 | 23:52 | 13.vcf.gz.tbi |
+    | -rw-r-x--- | 1 | 205M | Sep | 2 | 23:52 | 22.vcf.gz     |
+    | -rw-r-x--- | 1 | 36K  | Sep | 2 | 23:52 | 22.vcf.gz.tbi |
+
+  - the genotype is in block compressed VCF (variant call format).
+    - .vcf.gz*    : the main data;
+    - .vcfgz.tbi* : allow random access of any variant.
+  #+REVEAL: split
+  - to ease later operations, convert the data into PLINK BED format;
+  - during the conversion, keep only 
+    - bi-allelic variant
+    - single nucleotide polymorphism (i.e., SNP).
+    #+BEGIN_SRC sh :eval no
+      cd ~/gsp
+      # VCF to PLINK BED
+      plink2 --vcf 07.vcf.gz --snps-only --max-alleles 2 --make-bed --out 07
+      plink2 --vcf 13.vcf.gz --snps-only --max-alleles 2 --make-bed --out 13
+      plink2 --vcf 22.vcf.gz --snps-only --max-alleles 2 --make-bed --out 22
+
+      # cleanup
+      rm -f *.log
+    #+END_SRC
+  - Note: padding "0" before single digit chromosome helps sorting files.
+    #+REVEAL: split
+  - inspect the results of conversion
+    #+BEGIN_SRC sh :exports both :eval yes
+      cd ~/gsp
+      ls -lGgh [0-9][0-9]*.{bed,bim,fam}
+    #+END_SRC
+
+    #+RESULTS:
+    | -rw-r----- | 1 | 2.7G | Sep | 3 | 07:53 | 07.bed |
+    | -rw-r----- | 1 | 126M | Sep | 3 | 07:53 | 07.bim |
+    | -rw-r----- | 1 | 47K  | Sep | 3 | 07:53 | 07.fam |
+    | -rw-r----- | 1 | 1.6G | Sep | 3 | 07:54 | 13.bed |
+    | -rw-r----- | 1 | 78M  | Sep | 3 | 07:54 | 13.bim |
+    | -rw-r----- | 1 | 47K  | Sep | 3 | 07:54 | 13.fam |
+    | -rw-r----- | 1 | 631M | Sep | 3 | 07:54 | 22.bed |
+    | -rw-r----- | 1 | 30M  | Sep | 3 | 07:54 | 22.bim |
+    | -rw-r----- | 1 | 47K  | Sep | 3 | 07:54 | 22.fam |
+
 * Seperate Genes
+  - use gene table *ensb_h37_gen.bed.gz* from [[https://uswest.ensembl.org/info/website/tutorials/grch37.html][lengacy ENSEMBL]].
+  - use both PLINK1 BED and block compressed VCF formats.
+** extract one gene
+   For example, *TMEM196*
+   - located on chromosome 7;
+   - basepair from 19,719,315 to 19,773,617;
+   - aligned to assembly GRCh37;
+   - add 5000 basepair to both ends of the gene.
+   #+REVEAL: split
+   #+BEGIN_SRC sh
+     cd ~/gsp
+     a=$[19719315+5000]
+     b=$[19773617-5000]
+
+     # use plink to extrat TMEM196 from PLLINK BED files
+     plink --bfile 07 --chr 07 --from-bp $a --to-bp $b --make-bed --out TMEM196 &>/dev/null
+
+     # use bcftools to extrat TMEM196 from block compressed VCF.
+     bcftools view 07.vcf.gz -r 07:$a-$b -Oz -o TMEM196.vcf.gz
+
+     # cleanup
+     rm -f *.{log,nosex}
+   #+END_SRC
+
+   - inspect the results
+   #+BEGIN_SRC sh :eval yes
+     cd ~/gsp
+     ls -lgGh TMEM196.*
+   #+END_SRC
+
+   #+RESULTS:
+   | -rw-r----- | 1 | 880K | Sep | 3 | 07:37 | TMEM196.bed    |
+   | -rw-r----- | 1 | 41K  | Sep | 3 | 07:37 | TMEM196.bim    |
+   | -rw-r----- | 1 | 47K  | Sep | 3 | 07:37 | TMEM196.fam    |
+   | -rw-r----- | 1 | 8.7K | Sep | 3 | 07:37 | TMEM196.vcf.gz |
+
+** extract all genes
+   For nearly 20K genes in *ensb_h37_gen.bed.gz*
+   - use *while read* to fetch one line at a time
+   - get the first 4 columns in UCSC BED format
+     1) chromosome (*)
+     2) start-bp   (*)
+     3) end-bp     (*)
+     4) gene name
+   - compose and execute the extraction command;
+   - log both success and failure for each gene.
+   #+REVEAL: split
+   The *plink + BED* solution:
+   #+NAME: plink_gene
+   #+BEGIN_SRC sh :eval no
+     cd ~/gsp  			# working directory
+     mkdir -p gen			# put genes here
+     wnd=5000			# flanking window size
+     zcat ensb_h37_gen.bed.gz | while read chr bp1 bp2 tag c05 c06
+     do
+	 chr=${chr:3}		# remove "chr" prefix
+	 # deal with non-autosome
+	 if [ $chr = X  ]; then chr=23; fi
+	 if [ $chr = Y  ]; then chr=24; fi
+	 if [ $chr = XY ]; then chr=25; fi
+	 if [ $chr = M  ]; then chr=26; fi
+	 if [ $chr = MT ]; then chr=26; fi
+
+	 inp=$(printf %02d $chr)	# input and output
+	 out=$(printf gen/%02d_%09d $chr $bp1)
+
+	 if [ -e $out.bed -a -e $out.bim -a -e $out.fam ]; then
+	     ret=-1			# extract genes, skip existing ones
+	 else
+	     fbp=$[bp1-wnd]
+	     tbp=$[bp2+wnd]
+	     if [ $fbp -lt 1 ]; then fbp=1; fi
+	     plink --bfile $inp --chr $chr --from-bp $fbp --to-bp $tbp --make-bed --out $out &>/dev/null
+	     ret=$?
+	 fi
+	 echo -e "$chr\t$bp1\t$bp2\t$tag\t$out\t$ret"
+     done | tee gen.plink
+   #+END_SRC
+   #+REVEAL: split
+   *bcftools + VCF*
+   #+NAME: plink_gene
+   #+BEGIN_SRC sh :eval no
+      cd ~/gsp  			# working directory
+      mkdir -p gen			# put genes here
+      wnd=5000       			# flanking window size
+      zcat ensb_h37_gen.bed.gz | while read chr bp1 bp2 tag c05 c06
+      do
+	  chr=${chr:3}          	# remove "chr" prefix
+	  # deal with non-autosome
+	  if [ $chr = X  ]; then chr=23; fi
+	  if [ $chr = Y  ]; then chr=24; fi
+	  if [ $chr = XY ]; then chr=25; fi
+	  if [ $chr = M  ]; then chr=26; fi
+	  if [ $chr = MT ]; then chr=26; fi
+
+	  inp=$(printf %02d $chr)	# input and output
+	  out=$(printf gen/%02d_%09d $chr $bp1)
+
+	  if [ -e $out.vcf.gz ]; then
+	      ret=-1			# extract gene, skip existing
+	  else
+	      fbp=$[bp1-wnd]
+	      tbp=$[bp2+wnd]
+	      if [ $fbp -lt 1 ]; then fbp=1; fi
+	      bcftools view $inp.vcf.gz -r $chr:$fbp-$tbp -Oz -o $out.vcf.gz &>/dev/null
+	      ret=$?
+	  fi
+	  echo -e "$chr\t$bp1\t$bp2\t$tag\t$out\t$ret"
+      done | tee gen.bcftools
+   #+END_SRC
+** Extract Candidates
+   - provide a list of genes by name;
+   - subset the table to genes in the list;
+     - use *grep*
+   - use smoking related genes as an example
+     - CHRNA5, CHRNA3, CHRNB4, CHRNA7
+     - nicotine matabalism: CYP2A6, CYP2D6, CYP2E1
+     - schizophrenia co-morbidity: NRG1, NRG3, ERBB4
+
+   #+BEGIN_SRC sh
+     cd ~/gsp; mkdir -p smk; cd smk	# workding directory
+
+     # the list of candidate genes by name
+     echo -e "CHRNA5\nCHRNA3\nCHRNB4\nCHRNA7"  > smk.gen.txt
+     echo -e "CYP2A6\nCYP2D6\nCYP2E1"         >> smk.gen.txt
+     echo -e "NRG1\nNRG3\nERBB4"              >> smk.gen.txt
+
+     # subset gene table
+     zcat ../ensb_h37_gen.bed.gz | grep -f smk.gen.txt > ensb_h37_gen.smk.bed
+
+     # link in all 1000 genome p3 chrmosomes
+     g=/mnt/research/StatGen		# research group space
+     ln -sf $g/kgp/raw/000/*.vcf.gz* .	# 1000 genome p3 data
+     ls -LgGh *.vcf.gz*			# inspection 1: the sizes
+     ls -lgGh *.vcf.gz*			# inspection 2: the links
+   #+END_SRC
+
+   #+REVEAL: split
+   - use the same *while read* loop to extract genes;
+   - there are no genes on X chromosome, simplify the script.
+   #+BEGIN_SRC sh
+     # extract candidate genes
+     cat ensb_h37_gen.smk.bed | while read chr bp1 bp2 tag c05 c06
+     do
+	 chr=${chr:3}		# remove "chr" prefix
+	 inp=$(printf %02d $chr)	# input and output
+	 out=$(printf %02d_%09d $chr $bp1)
+
+	 fbp=$[bp1-wnd]
+	 tbp=$[bp2+wnd]
+	 if [ $fbp -lt 1 ]; then fbp=1; fi
+	 bcftools view $inp.vcf.gz -r $chr:$fbp-$tbp -Oz -o $out.vcf.gz &>/dev/null
+
+	 ret=$?
+	 echo -e "$chr\t$bp1\t$bp2\t$tag\t$out\t$ret"
+     done | tee smk.gen.bcftools
+   #+END_SRC
+
+   #+REVEAL: split
+   - convert VCF.GZ to PLINK BED and cleanup
+   #+BEGIN_SRC sh
+     rm -f [0-9][0-9].vcf.*		# remove links to chromosome (VCF)
+     for f in *.vcf.gz; do		# gene filename (*.vcf.gz)
+	 g=${f%%.*}			# gene id (chr_bp1)
+	 plink2 --vcf $f --snps-only --max-alleles 2 --make-bed --out $g
+     done
+     rm -f *.log			# if nothing is wrong, remove logs
+   #+END_SRC

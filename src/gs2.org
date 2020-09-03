@@ -1,0 +1,74 @@
+#+TITLE: Extract Genes from Variant Genotype
+#+AUTHOR: Tong, Xiaoran
+#+STARTIP: overview 
+#+PROPERTY: header-args :comments yes :results silent
+#+REVEAL_ROOT: https://cdn.jsdelivr.net/npm/reveal.js
+#+REVEAL_THEME: beige
+#+OPTIONS: num:nil
+#+OPTIONS: ^:{}
+#+PROPERTY: header-args:sh :session *shell*
+
+
+* Get Test Genotype
+  - for demonstration, use *1000 genomes phase 3*;
+    * the phase 3 sequencing aligns to GRCh37;
+    * variant data is host on [[ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/][EBI FTP]] site and [[ftp://ftp-trace.ncbi.nih.gov/1000genomes/ftp/release/20130502/][NCBI Mirror]];
+    * existing downloads on MSU HPCC:
+      */mnt/research/StatGen/kgp/raw/000*
+  - use chromosome 7, 13, and 22 as examples, copy the three into *~/gsp*
+  #+REVEAL: split
+  - inspect genotype data
+    #+NAME show_vcf
+    #+BEGIN_SRC sh :exports both
+    cd ~/gsp			# working directory
+    ls -lgGh [0-9][0-9].vcf.gz*	# exam variants in chromosomes
+    #+END_SRC
+
+    #+RESULTS:
+    | -rw-r-x--- | 1 | 866M | Sep | 2 | 23:52 | 07.vcf.gz     |
+    | -rw-r-x--- | 1 | 155K | Sep | 2 | 23:52 | 07.vcf.gz.tbi |
+    | -rw-r-x--- | 1 | 532M | Sep | 2 | 23:52 | 13.vcf.gz     |
+    | -rw-r-x--- | 1 | 95K  | Sep | 2 | 23:52 | 13.vcf.gz.tbi |
+    | -rw-r-x--- | 1 | 205M | Sep | 2 | 23:52 | 22.vcf.gz     |
+    | -rw-r-x--- | 1 | 36K  | Sep | 2 | 23:52 | 22.vcf.gz.tbi |
+
+  - the genotype is in block compressed VCF (variant call format).
+   - *??.vcf.gz*: the main data
+   - *??.gz.tbi*: index file enabling random access of any variant in the main
+     data.
+  #+REVEAL: split
+  - to ease later operations, covert the data into PLINK BED format;
+  - during the conversion, keep only 
+    - bi-allelic variant
+    - single nucleotide polymorphism (i.e., SNP).
+  #+NAME vcf2bed
+  #+BEGIN_SRC sh :eval no
+    cd ~/gsp			# working directory
+    plink2 --vcf 07.vcf.gz --snps-only --max-alleles 2 --make-bed --out 07
+    plink2 --vcf 13.vcf.gz --snps-only --max-alleles 2 --make-bed --out 13
+    plink2 --vcf 22.vcf.gz --snps-only --max-alleles 2 --make-bed --out 22
+    rm -f *.log                 # cleanup
+  #+END_SRC
+  - Note: padding "0" before single digit chromosome helps sorting files.
+  #+REVEAL: split
+  #+NAME show_bed
+  #+BEGIN_SRC sh :exports both
+    ls -lGgh ~/gsp/[0-9][0-9].{bed,bim,fam}
+  #+END_SRC
+
+  #+RESULTS:
+  | -rw-r----- | 1 | 2.7G | Sep | 3 | 00:27 | /mnt/home/tongxia1/gsp/07.bed        |
+  | -rw-r----- | 1 | 126M | Sep | 3 | 00:27 | /mnt/home/tongxia1/gsp/07.bim        |
+  | -rw-r----- | 1 | 47K  | Sep | 3 | 00:27 | /mnt/home/tongxia1/gsp/07.fam        |
+  | -rw-r-x--- | 1 | 866M | Sep | 2 | 23:52 | /mnt/home/tongxia1/gsp/07.vcf.gz     |
+  | -rw-r-x--- | 1 | 155K | Sep | 2 | 23:52 | /mnt/home/tongxia1/gsp/07.vcf.gz.tbi |
+  | -rw-r----- | 1 | 1.6G | Sep | 3 | 00:28 | /mnt/home/tongxia1/gsp/13.bed        |
+  | -rw-r----- | 1 | 78M  | Sep | 3 | 00:28 | /mnt/home/tongxia1/gsp/13.bim        |
+  | -rw-r----- | 1 | 47K  | Sep | 3 | 00:28 | /mnt/home/tongxia1/gsp/13.fam        |
+  | -rw-r-x--- | 1 | 532M | Sep | 2 | 23:52 | /mnt/home/tongxia1/gsp/13.vcf.gz     |
+  | -rw-r-x--- | 1 | 95K  | Sep | 2 | 23:52 | /mnt/home/tongxia1/gsp/13.vcf.gz.tbi |
+  | -rw-r----- | 1 | 631M | Sep | 3 | 00:28 | /mnt/home/tongxia1/gsp/22.bed        |
+  | -rw-r----- | 1 | 30M  | Sep | 3 | 00:28 | /mnt/home/tongxia1/gsp/22.bim        |
+  | -rw-r----- | 1 | 47K  | Sep | 3 | 00:28 | /mnt/home/tongxia1/gsp/22.fam        |
+  | -rw-r-x--- | 1 | 205M | Sep | 2 | 23:52 | /mnt/home/tongxia1/gsp/22.vcf.gz     |
+  | -rw-r-x--- | 1 | 36K  | Sep | 2 | 23:52 | /mnt/home/tongxia1/gsp/22.vcf.gz.tbi |

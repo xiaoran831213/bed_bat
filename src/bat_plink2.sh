@@ -91,40 +91,37 @@ mkdir -m0775 -p $out
 mkdir -m0775 -p $wrk
 [ $vbs ] && (echo "  wrk=$wrk"; HR)
 
-
 ## locate genotype files
 for i in $(seq 0 $[$ngt-1]); do
-    ! eval ls ${gts[$i]}.{bed,pgen} 2>/dev/null
-done | sed -r 's/[.](bed|pgen)$//' | sort -u > "$wrk/gls"
+    eval ls ${gts[$i]}.pgen #  2>/dev/null
+done | sed -r 's/[.]pgen$//' | sort -u > "$wrk/gls"
+
 ngt=$(cat "$wrk/gls" | wc -l)
 [ $ngt -gt 0 ] || (echo "$S: found no genotype file" >&2; exit 4)
 [ $vbs ] && echo "$S: $ngt genotype file(s) found (see $wrk/gls):"
 [ $vbs ] && (peek "$wrk/gls" 3 "  "; HR)
 
-
 ## genotyped individuals
-i="$wrk/gls"; o="$wrk/ref"
 [ $vbs ] && echo "$S: gather individuals appeared in all genotype:"
-s=$(fnew "$o" $erase)
+s=$(fnew "$wrk/gid" $erase)
 if [ $s != EXIST ]; then
     # get both fid and iid
     while IFS= read -r g; do
-        if   [ -f "$g.fam"  ]; then
-            awk <"$g.fam"  '{print $1,$2}'
+        if   [ -f "$g.psam"  ]; then
+            awk <"$g.psam"  '{print $1,$2}' | grep -v "^#"
         else
-            echo "$S: can not locate either \"$g.fam\"" >2
+            echo "$S: can not locate \"$g.psam\"" >2
             exit 4
         fi
-    done < "$i" | sort | uniq -c \
+    done < "$wrk/gls" | sort | uniq -c \
         | awk -v m=$ngt '$1==m {print $2,$3}' > "$wrk/bid"
     # get genotyped iid
     awk <"$wrk/bid" '{print $2}' | sort > "$wrk/gid"
 fi
-[ $vbs ] && echo "$s $wrk/gid"     # report, exit on error
+[ $vbs ] && echo "$s $wrk/gid"  # report, exit on error
 ind=$(cat "$wrk/gid" | wc -l)   # report
 [ $vbs ] && peek "$wrk/gid" 3 "  "
 [ $vbs ] && (echo "N=$ind genotyped in \"$wrk/gid\"."; HR)
-
 
 ## shuffle individuals
 o="$wrk/idv"
@@ -212,7 +209,8 @@ wc -l "$wrk/div"/*.idv | head -n-1 | awk '{print $1,$2}' > "$wrk/bsz"
 [ $vbs ] && echo "$S: M=$nbt batches put under \"$wrk/div\"." && HR
 
 
-## divide genotype
+# divide genotype; although the data can be saved as PLINK2 binary, PLINK2 does
+# not yet support merging, thus the dividied genotype wil be saved as PLINK1.
 K=/dev/null                     # sink
 [ $vbs ] && echo "$S: divide genotype by \"$wrk/div/*.idv\":"
 while IFS= read -r f            # genotype files
@@ -236,8 +234,8 @@ do
         # commence batch extraction?
         r=PASS
         if [ $s = ERASE -o $s = CREATE ]; then
-            sort "$f.fam" -k2,2 | join - "$b.iid" -1 2 -o 1.1,1.2 > "$b.cid"
-            plink --bfile "$f" --keep "$b.cid" --keep-allele-order \
+            sort "$f.psam" -k2,2 | join - "$b.iid" -1 2 -o 1.1,1.2 > "$b.cid"
+            plink2 --pfile "$f" --keep "$b.cid" --keep-allele-order \
                   --make-bed --out "$o" &>$K
             r=${PIPESTATUS[0]}
         fi
@@ -246,7 +244,6 @@ do
     done
 done < "$wrk/gls"
 [ $vbs ] && echo "$S: $ngt genotype divided under \"wrk/div\"." && HR
-
 
 # merge genotype for each batch
 [ $vbs ] && echo "$S: merge genotype for each batch"

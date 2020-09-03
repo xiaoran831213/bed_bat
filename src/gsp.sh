@@ -25,6 +25,7 @@ declare -a gts                  # genotype (multiple)
 gfm=                            # genotype format
 rgn=                            # region table
 rfm=                            # region table format
+wnd=0                           # flanking window size (def=0)
 out=                            # output
 wrk=                            # working directory
 cmd=                            # output command instead?
@@ -34,8 +35,8 @@ retain=                         # retain temp files?
 
 K=/dev/null                     # sink for screen prints
 
-SOPT=g:r:o:cev
-LOPT=gen:,rgn:,rgn-format:,gen-format,out:,cmd:,workdir,erase,verbose,retain
+SOPT=g:r:o:w:cev
+LOPT=gen:,rgn:,rgn-format:,gen-format,out:,window:,cmd:,workdir,erase,verbose,retain
 
 # -regarding ! and PIPESTATUS see above
 # -temporarily store output to be able to check for errors
@@ -62,6 +63,7 @@ while true; do
         --rgn-format)      s=2; rfm="$2"    ;;
         --gen-format)      s=2; gfm="$2"    ;;
         -o|--out)          s=2; out="$2" ;;
+        -w|--window)       s=2; wnd="$2" ;;
         -e|--erase)        s=1; erase=y  ;;
         -v|--verbose)      s=1; vbs=1 ;;
         --retain)          s=1; retain=y ;;
@@ -97,11 +99,10 @@ mkdir -m0775 -p $wrk
 
 ## locate genotype files, decide type
 o="$wrk/gls"
-# for i in $(seq 0 $[$ngt-1]); do
-#     g="${gts[$i]}"
+echo ${gts[@]}
 for g in ${gts[@]}; do
     for e in {bed,pgen,vcf.gz}; do
-        find $(dirname "$g") -mindepth 1 -maxdepth 1 -name "$(basename $g)".$e | while read f
+        find $(dirname "$g")/ -mindepth 1 -maxdepth 1 -name "$(basename $g)".$e | while read f
         do
             echo -e "${f%.$e}\t$e"
         done
@@ -146,16 +147,15 @@ i="$wrk/gls"; o="$wrk/cls"
 s=$(fnew "$o" $erase)
 [ $s == EXIST ] || while IFS=$'\t' read g e; do
     if [ $e = vcf.gz ]; then
-        echo $(zcat $g.$e | sed -r -n 's/^##contig=<ID=([^,]*).*/\1\t/p; /^#CHR/q')
+        echo "$(zcat $g.$e | sed -r -n 's/^##contig=<ID=([^,]*).*/\1/p; /^#CHR/q')"
     elif [ $e = bed ]; then
-        echo $(awk <"$g.bim" '{print $1}' | sort -u)
+        echo "$(awk <"$g.bim" '{print $1}' | sort -u)"
     elif [ $e = pgen ]; then
-        echo $(awk <"$g.pvar" '$1!~"^#" {print $1}' | sort -u)
+        echo "$(awk <"$g.pvar" '$1!~"^#" {print $1}' | sort -u)"
     fi | awk -v g="$g" -v e="$e" '{print $1"\t"g"\t"e}' | sort -u
 done <"$i" | sort -k1,1 -k2,2 >"$o"
 [ $vbs ] && echo "$s  \"$o\"" # report
 [ $vbs ] && peek "$o" 4 | column -t -s $'\t' && NL "$o" && HR
-
 
 ### match by chromosome
 i="$wrk/rgn"; j="$wrk/cls"; o="$wrk/r2c"
@@ -169,19 +169,23 @@ s=$(fnew "$o" $erase)
 ## extract regions
 i="$wrk/r2c"; o="$wrk/rpt"; rm -rf "$o"
 [ $vbs ] && echo "$S: extract regions:"
+[ $vbs ] && echo "$S: flanking = $wnd"
 while read i c b e n g x; do
     # i=idx, c=chr, b=begin, e=end, n=name, g=genotype file, x=surfix
     [ "$n" = "-9" ] && d="$out/$i" || d="$out/$n" # output file
     s=$(fnew "$d.$x" $erase)    # CREATE, ERASE, or EXIST?
 
     # part of the message, without result.
-    [ $vbs ] && printf "%5s %2d %9d %9d %s\t" $i $c $b $e "$d.$x"
+    [ $vbs ] && printf "%5s %2d %9d %9d %4d %s\t" $i $c $b $e $wnd "${d##*/} $x"
     [ $s = EXIST ] && echo $s && continue # skip existing?
 
     r=0                         # try extracting a region
+    b=$[(b - wnd) * (b > wnd)]
+    if [ $b -lt 0 ]; then b=0; fi
+    e=$[e + wnd]
     if [ $x = vcf.gz ]; then
         # bcftools does not complain empty region, manually count variants
-        p=$[ $(bcftools view "$g.$x" -r $c:$b-$e | sed -n '/^[^#]/p;/^[^#]/q' | wc -l) ]
+        p=$(echo $(bcftools view "$g.$x" -r $c:$b-$e | sed -n '/^[^#]/p; /^[^#]/q' | wc -l))
         if [ $p -gt 0 ]; then
             bcftools view "$g.$x" -r $c:$b-$e -Oz -o "$d.$x"
             r=${PIPESTATUS[0]}
@@ -203,12 +207,11 @@ while read i c b e n g x; do
     # remove useless files
     rm -rf "$d".{nosex,log}
 
-    printf "%2d\n" $r
+    [ $vbs ] && printf "%2d\n" $r
 done <"$i" | tee "$o"
 echo 
-[ $vbs ] && echo "$s  \"$o\"" # report
-[ $vbs ] && peek "$o" 4 | column -t -s $'\t' && NL "$o" && HR
-
+[ $vbs ] && NL "$o" && HR
+cp "$o" "$out.gsp"
 
 # clean up
 if [ $retain ]; then

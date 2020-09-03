@@ -14,13 +14,5 @@ BEGIN {
 }
 
 {
-    # switch($c)
-    # {
-    #     case "X"  : i=23; break
-    #     case "Y"  : i=24; break
-    #     case "XY" : i=25; break
-    #     case /^M/ : i=26; break
-    #     default   : i=$c
-    # }
     printf "%02d:%09d\t",n[$c],$p;print NR,$a,$b,$0
 }

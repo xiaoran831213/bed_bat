@@ -1,0 +1,14 @@
+b2b.sh:
+  BLAST to BIM
+
+Usage:
+  SCRIPT --inp INP --out OUT
+
+Mandatory Parameters:
+  -i|--inp INP: the format 4 BLAST result, missing means reading from standard input.
+  see "dat/test/m2r_Aox2.o4" for an example.
+
+Optional  Parameters:
+
+  --out: output filename, adds ".bim" to it if the surfix is missing; infer from INP
+  if unspecified
